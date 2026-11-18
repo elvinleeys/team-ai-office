@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+!.env.example
+supabase/.temp/
+
+# 비밀 값 (GitHub App private key, Cloudflare Workers 로컬 비밀 값)
+*.pem
+.dev.vars
+.dev.vars.*
+.wrangler/
+.vercel
