@@ -48,7 +48,7 @@ Claude와 대화하거나 GitHub 칸반 카드를 옮기면, 파스텔 톤 3D �
 
 ### 1. 로그인하고 방에 들어가기
 
-1. 서비스 주소에 접속해 **GitHub로 로그인**을 누릅니다.
+1. https://team-ai-office.vercel.app 에 접속해 **GitHub로 로그인**을 누릅니다.
 2. 첫 화면의 **내 방** 목록에서 팀 저장소 방을 고릅니다.
    - 목록에 없다면: 방장이 아직 방을 만들지 않았거나, 내가 그 저장소의 협업자로 등록되지 않았거나, 방이 만들어진 뒤에 협업자로 추가된 경우입니다. 방장에게 방 화면 아래 **협업자 새로고침**을 부탁하세요.
 3. 처음 들어가면 **캐릭터와 파트**를 고르는 화면이 나옵니다. 둘 다 골라야 입장할 수 있어요. 나중에 바꿀 수 있습니다.
@@ -59,16 +59,23 @@ Claude와 대화하거나 GitHub 칸반 카드를 옮기면, 파스텔 톤 3D �
 
 1. 터미널에서 **프로젝트 폴더**로 이동해 한 번 등록합니다.
    ```bash
-   claude mcp add team-office --transport http <MCP 서버 주소>/mcp
+   claude mcp add team-office --transport http https://team-office-mcp.team-office-mcp.workers.dev/mcp
    ```
-   (로컬에서 돌릴 때 주소: `http://127.0.0.1:8787/mcp`)
+   (서버를 직접 로컬에서 돌릴 때 주소: `http://127.0.0.1:8787/mcp`)
 2. Claude Code를 열고 `/mcp` → `team-office` → **Authenticate**를 고릅니다.
 3. 브라우저에 "Claude Code를 팀 오피스에 연결할까요?" 화면이 열리면 **허용**을 누릅니다. "연결됐어요"가 보이면 끝이에요.
 4. Claude Code에서 "회의 들어가"라고 말해 보세요. 방의 내 캐릭터가 회의 테이블로 걸어갑니다.
 
 > 토큰을 복사하거나 붙여 넣을 필요가 없습니다. 연결을 끊고 싶으면 웹 첫 화면의 **연결된 앱 → 연결 해제**를 누르세요.
 
-### 3. (선택) HP · MP 자동 수집기
+### 3. (선택) 휴대폰에 앱으로 설치 (PWA)
+
+웹을 휴대폰 홈 화면에 설치하면 주소창 없이 앱처럼 열립니다.
+
+- **Android (Chrome)**: 사이트를 열고 메뉴(⋮) → **앱 설치** 또는 **홈 화면에 추가**
+- **iPhone (Safari)**: 사이트를 열고 공유 버튼 → **홈 화면에 추가**
+
+### 4. (선택) HP · MP 자동 수집기
 
 내 PC의 Claude 사용률을 15분마다 자동으로 보고합니다. 켜지 않으면 HP·MP 게이지는 비어 있거나 직접 보고한 값만 보여요.
 
@@ -80,7 +87,7 @@ node --env-file=.env collector.ts          # 수집 시작 (끄려면 Ctrl+C)
 ```
 
 - Node.js 22.18 이상이 필요합니다. 추가로 설치할 패키지는 없어요.
-- `.env`의 `TEAM_OFFICE_MCP_URL`을 팀의 MCP 서버 주소로 바꿔 주세요.
+- `.env`의 `TEAM_OFFICE_MCP_URL`은 `https://team-office-mcp.team-office-mcp.workers.dev/mcp`입니다 (서버를 로컬에서 돌릴 때만 바꾸세요).
 - Claude 로그인 정보는 내 PC 밖으로 나가지 않습니다. 서버로는 사용률(%)과 리셋 시각만 보내요.
 
 ---
