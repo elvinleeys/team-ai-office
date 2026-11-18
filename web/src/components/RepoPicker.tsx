@@ -1,11 +1,12 @@
 'use client';
 
 // 저장소로 방 만들기 (시안 v3 CreateRoom.dc.html). 이미 방이 있는 저장소는 비활성 대신 '방으로 들어가기'
-// (협업자를 다시 동기화하고 입장 — 나중에 추가된 협업자가 들어오는 경로, 2026-11-18 사용자 결정)
-import { useState, useTransition } from 'react';
+// 이미 조원인 방은 바로 이동하는 링크, 아직 조원이 아닌 방은 협업자를 다시 맞춘 뒤 입장 (나중에 추가된 협업자가 들어오는 경로, 2026-11-18 사용자 결정)
+import Link from 'next/link';
+import { useActionState, useState, useTransition } from 'react';
 import { createRoom, previewRepo } from '@/app/actions';
 
-type Repo = { id: number; full_name: string; private: boolean; hasRoom: boolean };
+type Repo = { id: number; full_name: string; private: boolean; roomId: string | null; member: boolean };
 type Preview = Awaited<ReturnType<typeof previewRepo>>;
 
 export function RepoPicker({ repos, myLogin, installUrl }: { repos: Repo[]; myLogin: string; installUrl: string }) {
@@ -14,6 +15,8 @@ export function RepoPicker({ repos, myLogin, installUrl }: { repos: Repo[]; myLo
   const [selId, setSelId] = useState<number | null>(null);
   const [preview, setPreview] = useState<Record<number, Preview>>({});
   const [loading, start] = useTransition();
+  // 방 만들기·들어가기 결과: 실패하면 이유가 오고, 성공하면 서버가 방으로 이동시킨다
+  const [result, submit, entering] = useActionState(createRoom, {});
   const mine = (r: Repo) => r.full_name.split('/')[0].toLowerCase() === myLogin.toLowerCase();
   const list = repos.filter((r) => (owner === 'me') === mine(r) && r.full_name.toLowerCase().includes(query.trim().toLowerCase()));
   const sel = repos.find((r) => r.id === selId) ?? null;
@@ -48,7 +51,7 @@ export function RepoPicker({ repos, myLogin, installUrl }: { repos: Repo[]; myLo
                 <span className="row" style={{ gap: 6 }}>
                   <span className="chip">{r.private ? 'Private' : 'Public'}</span>
                   {selId === r.id && p?.count !== undefined && <span className="chip">협업자 {p.count}명</span>}
-                  {r.hasRoom && <span className="chip" style={{ color: 'var(--ink-3)' }}>이미 방이 있어요</span>}
+                  {r.roomId && <span className="chip" style={{ color: 'var(--ink-3)' }}>{r.member ? '내가 있는 방' : '이미 방이 있어요'}</span>}
                 </span>
               </span>
             </button>
@@ -68,7 +71,7 @@ export function RepoPicker({ repos, myLogin, installUrl }: { repos: Repo[]; myLo
       <aside className="card" aria-labelledby="sum-h" style={{ flex: '2 1 300px', minWidth: 0, position: 'sticky', top: 24 }}>
         <h2 id="sum-h" className="t-h2">만들 방</h2>
         {sel ? (
-          <form action={createRoom} className="stack" style={{ gap: 14 }}>
+          <form action={submit} className="stack" style={{ gap: 14 }}>
             <input type="hidden" name="repo_id" value={sel.id} />
             <div className="card-tint">
               <span className="t-overline">저장소</span>
@@ -88,8 +91,15 @@ export function RepoPicker({ repos, myLogin, installUrl }: { repos: Repo[]; myLo
                 {p.count! > p.people.length && <span className="chip">+ {p.count! - p.people.length}명</span>}
               </div>
             )}
-            <p className="hint" style={{ margin: 0 }}>{sel.hasRoom ? '이미 있는 방이에요. 협업자 목록을 다시 맞춘 뒤 들어가요.' : '칸반 연결은 방을 만든 뒤 방 설정에서 할 수 있어요.'}</p>
-            <button type="submit" className="btn btn-primary btn-lg btn-block">{sel.hasRoom ? '방으로 들어가기' : '방 만들기'}</button>
+            <p className="hint" style={{ margin: 0 }}>
+              {sel.member ? '이미 조원인 방이에요. 바로 들어가요.' : sel.roomId ? '이미 있는 방이에요. 협업자 목록을 다시 맞춘 뒤 들어가요.' : '칸반 연결은 방을 만든 뒤 방 설정에서 할 수 있어요.'}
+            </p>
+            {result.error && <div className="banner banner-danger" role="alert" style={{ fontSize: 13 }}><span className="banner-text">{result.error}</span></div>}
+            {sel.member && sel.roomId
+              ? <Link className="btn btn-primary btn-lg btn-block" href={`/rooms/${sel.roomId}`}>방으로 들어가기</Link>
+              : <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={entering} aria-busy={entering}>
+                  {entering ? (sel.roomId ? '들어가는 중…' : '방을 만드는 중…') : sel.roomId ? '방으로 들어가기' : '방 만들기'}
+                </button>}
           </form>
         ) : (
           <>

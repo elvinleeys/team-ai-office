@@ -184,6 +184,7 @@
 - [2026-11-18] 뷰에서 후보 행 여러 개 중 하나를 고를 때는 열마다 `coalesce(p.x, d.x)` 하지 말고 `case when p.id is not null then p.x else d.x end`로 같은 행에서 가져온다 — 초안 카드(url null)에 최근 Done 이슈의 URL이 섞였다 (`effective_statuses`, 실제 칸반 확인 중 발견).
 - [2026-11-18] `supabase db query -o csv`의 큰 정수(installation_id 등)는 지수 표기로 나오니 스크립트 인자로 쓸 때는 `::text`로 캐스팅해 읽는다 — `1.82853999e+08`을 그대로 넘겨 App 토큰 발급이 401이 났다.
 - [2026-11-18] PowerShell 5.1에서 한글이 든 인자를 `gh api graphql` 등 외부 명령에 넘길 때는 Bash 도구를 쓴다 — PowerShell이 인코딩을 깨뜨려 GraphQL 파싱 오류가 났다.
+- [2026-11-18] 버튼으로 부르는 서버 액션은 `useActionState`로 진행 중 표시("…하는 중")와 실패 이유를 버튼 바로 아래에 보여준다. 이미 할 수 있는 이동(이미 조원인 방 입장)은 서버 액션 대신 `Link`로 한다 — 방 만들기의 '방으로 들어가기'가 GitHub 재확인·협업자 동기화를 거치며 실패를 페이지 맨 위 배너로만 알려, 사용자에게 아무 반응 없는 것처럼 보였다.
 - [2026-11-18] Supabase OAuth 동의를 코드로 승인할 때는 `getAuthorizationDetails(id)`를 먼저 부른 뒤 `approveAuthorization`한다 — 바로 승인하면 data가 null로 실패했다 (수집기 로그인 시험).
 - [2026-11-18] Bash에서 `node -e "..."`처럼 큰따옴표로 감싼 코드에는 백틱을 넣지 않는다. 긴 치환은 스크립트 파일(quoted heredoc)로 실행한다 — 셸이 백틱을 명령으로 실행해 PRD 문구 일부가 지워졌다. `python`은 이 PC에서 Store 스텁이라 멈추니 쓰지 않는다.
 - [2026-11-18] 많이 import되는 파일이나 여러 컴포넌트를 통째로 바꾼 뒤 dev 서버에서 "undefined" 모듈 오류·hydration 불일치가 나면, dev 서버를 재시작하거나 `npm run build` 후 `npx next start -p 3100`으로 확인한다(끝나면 3100 포트 프로세스 종료) — 방 설정 화면이 `STATUS_LABEL` undefined로 500이 났고, v3 디자인 교체 후 캐릭터 선택 화면이 dev 서버에서만 hydration 불일치가 났다(빌드 서버는 정상).

@@ -7,7 +7,7 @@ import { RepoPicker } from '@/components/RepoPicker';
 import { Back, GitHubMark, Notice } from '@/components/ui';
 import { GH_TOKEN_COOKIE, getMe } from '@/lib/auth';
 import { GitHubError, installUrl, userRepos, type Repo } from '@/lib/github';
-import { must, supabaseAdmin } from '@/lib/supabase/server';
+import { must, supabaseAdmin, supabaseUser } from '@/lib/supabase/server';
 
 export default function NewRoom({ searchParams }: PageProps<'/rooms/new'>) {
   return (
@@ -53,17 +53,23 @@ async function Repos({ searchParams }: Pick<PageProps<'/rooms/new'>, 'searchPara
     );
   }
 
-  // 이미 방이 있는 저장소 (내가 조원이 아닐 수도 있어 서버 키로 확인한다. 저장소 id만 본다)
+  // 이미 방이 있는 저장소 (내가 조원이 아닐 수도 있어 서버 키로 확인한다)와, 그중 내가 이미 조원인 방 (RLS: 내 방만 보인다)
   const ids = repos.map((r) => r.id);
-  const existing = new Set(ids.length
-    ? must(await supabaseAdmin().from('rooms').select('github_repo_id').in('github_repo_id', ids)).map((r) => r.github_repo_id)
-    : []);
+  const [existing, myRooms] = ids.length ? await Promise.all([
+    supabaseAdmin().from('rooms').select('id, github_repo_id').in('github_repo_id', ids).then(must),
+    (await supabaseUser()).from('rooms').select('id').in('github_repo_id', ids).then(must),
+  ]) : [[], []];
+  const roomOf = new Map(existing.map((r) => [r.github_repo_id, r.id]));
+  const mine = new Set(myRooms.map((r) => r.id));
 
   return (
     <>
       <Notice error={error} />
       <RepoPicker
-        repos={repos.map((r) => ({ id: r.id, full_name: r.full_name, private: r.private, hasRoom: existing.has(r.id) }))}
+        repos={repos.map((r) => {
+          const roomId = roomOf.get(r.id) ?? null;
+          return { id: r.id, full_name: r.full_name, private: r.private, roomId, member: !!roomId && mine.has(roomId) };
+        })}
         myLogin={me.github_login} installUrl={installUrl()}
       />
     </>

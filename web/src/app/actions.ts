@@ -35,23 +35,40 @@ function fail(path: string, msg: string): never {
   redirect(`${path}?error=${encodeURIComponent(msg)}`);
 }
 
-/** 저장소를 골라 방을 만든다. 이미 있는 방이면 동기화 후 그 방으로 간다. */
-export async function createRoom(formData: FormData) {
+/**
+ * 저장소를 골라 방을 만든다. 이미 있는 방이면 협업자를 다시 맞춘 뒤 그 방으로 간다 (나중에 추가된 협업자가 들어오는 경로).
+ * 방 만들기 화면이 useActionState로 부른다: 실패하면 이유를 돌려주고(버튼 아래에 표시), 성공하면 방으로 이동한다.
+ */
+export async function createRoom(_prev: { error?: string }, formData: FormData): Promise<{ error?: string }> {
   const me = await requireMe();
-  const repoId = Number(formData.get('repo_id'));
+  let roomId: string;
+  try {
+    roomId = await createOrJoinRoom(me.id, Number(formData.get('repo_id')));
+  } catch (e) {
+    if (e instanceof RoomError) return { error: e.message };
+    console.error('[createRoom]', e);
+    return { error: e instanceof GitHubError ? `GitHub 요청이 실패했어요 (HTTP ${e.status}). 잠시 후 다시 시도하세요.` : '방을 만들지 못했어요. 잠시 후 다시 시도하세요.' };
+  }
+  redirect(`/rooms/${roomId}`);
+}
+
+/** 사용자에게 그대로 보여줘도 되는 방 만들기 실패 */
+class RoomError extends Error {}
+
+async function createOrJoinRoom(meId: string, repoId: number): Promise<string> {
   const ghToken = (await cookies()).get(GH_TOKEN_COOKIE)?.value;
-  if (!ghToken) fail('/rooms/new', 'GitHub 인증이 만료되었습니다. 다시 로그인하세요.');
+  if (!ghToken) throw new RoomError('GitHub 인증이 만료되었어요. 다시 로그인하세요.');
 
   // 폼 값을 믿지 않고, 이 사람이 실제로 접근할 수 있는 저장소인지 GitHub에 다시 묻는다
   let repos;
   try {
     repos = await userRepos(ghToken);
   } catch (e) {
-    if (e instanceof GitHubError && e.status === 401) fail('/rooms/new', 'GitHub 인증이 만료되었습니다. 다시 로그인하세요.');
+    if (e instanceof GitHubError && e.status === 401) throw new RoomError('GitHub 인증이 만료되었어요. 다시 로그인하세요.');
     throw e;
   }
   const repo = repos.find((r) => r.id === repoId);
-  if (!repo) fail('/rooms/new', '접근할 수 없는 저장소입니다.');
+  if (!repo) throw new RoomError('접근할 수 없는 저장소예요.');
 
   const db = supabaseAdmin();
   const existing = maybe(await db.from('rooms').select('id').eq('github_repo_id', repo.id).maybeSingle());
@@ -59,15 +76,15 @@ export async function createRoom(formData: FormData) {
     ? (check(await db.from('rooms').update({ full_name: repo.full_name, installation_id: repo.installation_id }).eq('id', existing.id)), existing.id)
     : must(
         await db.from('rooms')
-          .insert({ github_repo_id: repo.id, full_name: repo.full_name, installation_id: repo.installation_id, created_by: me.id })
+          .insert({ github_repo_id: repo.id, full_name: repo.full_name, installation_id: repo.installation_id, created_by: meId })
           .select('id').single(),
       ).id;
 
   await syncRoom(roomId);
 
-  const mine = maybe(await db.from('room_members').select('active').eq('room_id', roomId).eq('member_id', me.id).maybeSingle());
-  if (!mine?.active) fail('/rooms/new', `${repo.full_name}의 협업자 목록에 내 계정이 없습니다.`);
-  redirect(`/rooms/${roomId}`);
+  const mine = maybe(await db.from('room_members').select('active').eq('room_id', roomId).eq('member_id', meId).maybeSingle());
+  if (!mine?.active) throw new RoomError(`${repo.full_name}의 협업자 목록에 내 계정이 없어요.`);
+  return roomId;
 }
 
 /** 방 만들기 화면: 고른 저장소의 협업자 수·미리보기 (2026-11-18 사용자 결정: 고른 저장소만 조회). 내가 접근할 수 있는 저장소인지 다시 확인한다 */
