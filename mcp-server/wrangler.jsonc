@@ -1,0 +1,15 @@
+// Cloudflare Workers 배포 설정 (MCP 서버). 비밀 값은 여기에 쓰지 않고 `npx wrangler secret put <이름>`으로 넣는다:
+//   SUPABASE_URL, SUPABASE_SECRET_KEY, GITHUB_TOKEN_ENC_KEY, GITHUB_APP_CLIENT_ID, GITHUB_APP_PRIVATE_KEY
+// MCP_PUBLIC_URL은 비워 두면 요청 주소(https://team-office-mcp.<계정>.workers.dev)를 그대로 쓴다.
+// 로컬 확인: .env를 .dev.vars로 복사한 뒤 `npx wrangler dev` (Cron은 `--test-scheduled`로 /__scheduled 호출)
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "team-office-mcp",
+  "main": "src/worker.ts",
+  "compatibility_date": "2025-09-15",
+  // process.env·node:crypto(PAT 복호화, GitHub App JWT 서명)를 쓴다
+  "compatibility_flags": ["nodejs_compat"],
+  // F17 칸반 동기화: Workers는 상시 프로세스가 아니라 Cron으로 1분마다 (Node 실행은 45초 루프)
+  "triggers": { "crons": ["* * * * *"] },
+  "observability": { "enabled": true }
+}

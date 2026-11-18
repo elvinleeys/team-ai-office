@@ -24,6 +24,9 @@ export type CardRow = {
 /** 사용자에게 보여줘도 되는 동기화 실패 (토큰 원문을 담지 않는다) */
 export class SyncError extends Error {}
 
+// GitHub API는 User-Agent가 없으면 403을 준다. Node fetch는 자동으로 넣지만 Cloudflare Workers fetch는 넣지 않는다
+const UA = { 'user-agent': 'team-office-mcp' };
+
 const norm = (s: string) => s.trim().toLowerCase();
 /** 대소문자·앞뒤 공백 무시로 매핑 표를 찾는다 (GitHub 열 이름은 그대로 저장하고 비교만 느슨하게) */
 const lookup = <V>(table: Record<string, V>, name: string | undefined): V | undefined =>
@@ -84,7 +87,7 @@ export async function fetchProjectItems(token: string, ref: ProjectRef, config: 
   for (let page = 0; page < 50; page++) {
     const res = await fetcher('https://api.github.com/graphql', {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: { ...UA, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       body: JSON.stringify({
         query: ITEMS_QUERY(ref.ownerType === 'org' ? 'organization' : 'user'),
         variables: { owner: ref.owner, number: ref.number, after, statusField: config.statusField, partField: config.partField },
@@ -125,7 +128,7 @@ async function installationToken(installationId: number, fetcher: Fetcher): Prom
   const body = `${b64(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64(JSON.stringify({ iat: now - 60, exp: now + 540, iss: id }))}`;
   const jwt = `${body}.${createSign('RSA-SHA256').update(body).sign(pem, 'base64url')}`;
   const r = await fetcher(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
-    method: 'POST', headers: { authorization: `Bearer ${jwt}`, accept: 'application/vnd.github+json' },
+    method: 'POST', headers: { ...UA, authorization: `Bearer ${jwt}`, accept: 'application/vnd.github+json' },
   });
   if (!r.ok) throw new SyncError(`App 설치 토큰 발급 실패 HTTP ${r.status} (App이 그 조직에 설치돼 있는지 확인)`);
   return ((await r.json()) as { token: string }).token;
@@ -180,17 +183,24 @@ export async function syncRoomProject(roomId: string, fetcher: Fetcher = fetch):
   }
 }
 
-/** 프로젝트가 연결된 모든 방을 주기적으로 동기화한다. 이전 회차가 안 끝났으면 건너뛴다 */
+/** 프로젝트가 연결된 모든 방을 한 번 동기화한다 (Node 루프와 Cloudflare Cron이 부른다) */
+export async function syncAllRooms() {
+  try {
+    const rooms = must(await db.from('rooms').select('id').not('project_owner', 'is', null));
+    for (const r of rooms) await syncRoomProject(r.id);
+  } catch (e) {
+    console.error('[sync]', e);
+  }
+}
+
+/** Node 실행용: 주기적으로 동기화한다. 이전 회차가 안 끝났으면 건너뛴다 */
 export function startSyncLoop(seconds: number) {
   let running = false;
   const tick = async () => {
     if (running) return;
     running = true;
     try {
-      const rooms = must(await db.from('rooms').select('id').not('project_owner', 'is', null));
-      for (const r of rooms) await syncRoomProject(r.id);
-    } catch (e) {
-      console.error('[sync]', e);
+      await syncAllRooms();
     } finally {
       running = false;
     }
